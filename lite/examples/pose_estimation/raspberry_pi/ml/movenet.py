@@ -25,7 +25,7 @@ import numpy as np
 # pylint: disable=g-import-not-at-top
 try:
   # Import TFLite interpreter from tflite_runtime package if it's available.
-  from tflite_runtime.interpreter import Interpreter
+  import tflite_runtime.interpreter as tflite
 except ImportError:
   # If not, fallback to use the TFLite interpreter from the full TF package.
   import tensorflow as tf
@@ -42,7 +42,7 @@ class Movenet(object):
   _TORSO_EXPANSION_RATIO = 1.9
   _BODY_EXPANSION_RATIO = 1.2
 
-  def __init__(self, model_name: str) -> None:
+  def __init__(self, model_name: str, num_threads: int, ext_delegate, ext_delegate_options) -> None:
     """Initialize a MoveNet pose estimation model.
 
     Args:
@@ -54,8 +54,28 @@ class Movenet(object):
     if not ext:
       model_name += '.tflite'
 
+    self.ext_delegate = None
+    self.ext_delegate_options = {}
+
+    # parse extenal delegate options
+    if ext_delegate_options is not None:
+      options = ext_delegate_options.split(';')
+      for o in options:
+        kv = o.split(':')
+        if (len(kv) == 2):
+          self.ext_delegate_options[kv[0].strip()] = kv[1].strip()
+        else:
+          raise RuntimeError('Error parsing delegate option: ' + o)
+
+    # load external delegate
+    if ext_delegate is not None:
+      print('Loading external delegate from {} with args: {}'.format(ext_delegate, self.ext_delegate_options))
+      self.ext_delegate = [
+          tflite.load_delegate(ext_delegate, self.ext_del_options)
+      ]
+    
     # Initialize model
-    interpreter = Interpreter(model_path=model_name, num_threads=4)
+    interpreter = tflite.Interpreter(model_path=model_name, experimental_delegates=self.ext_delegate,num_threads=num_threads)
     interpreter.allocate_tensors()
 
     self._input_index = interpreter.get_input_details()[0]['index']

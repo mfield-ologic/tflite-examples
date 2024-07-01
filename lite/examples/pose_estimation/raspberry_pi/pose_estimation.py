@@ -25,8 +25,15 @@ from ml import Posenet
 import utils
 
 
-def run(estimation_model: str, tracker_type: str, classification_model: str,
-        label_file: str, camera_id: int, width: int, height: int) -> None:
+def run(estimation_model: str,
+        tracker_type: str,
+        classification_model: str,
+        label_file: str,
+        camera_id: int,
+        width: int,
+        height: int,
+        num_threads: int, 
+        ext_delegate, ext_delegate_options) -> None:
   """Continuously run inference on images acquired from the camera.
 
   Args:
@@ -50,7 +57,7 @@ def run(estimation_model: str, tracker_type: str, classification_model: str,
 
   # Initialize the pose estimator selected.
   if estimation_model in ['movenet_lightning', 'movenet_thunder']:
-    pose_detector = Movenet(estimation_model)
+    pose_detector = Movenet(estimation_model, num_threads, ext_delegate, ext_delegate_options)
   elif estimation_model == 'posenet':
     pose_detector = Posenet(estimation_model)
   elif estimation_model == 'movenet_multipose':
@@ -186,10 +193,39 @@ def main():
       help='Height of frame to capture from camera.',
       required=False,
       default=480)
+  parser.add_argument(
+      '--num_threads', default=None, type=int, help='number of threads')
+  parser.add_argument(
+      '-e', '--ext_delegate', help='external_delegate_library path')
+  parser.add_argument(
+      '-o',
+      '--ext_delegate_options',
+      help='external delegate options, \
+            format: "option1: value1; option2: value2"')
   args = parser.parse_args()
 
-  run(args.model, args.tracker, args.classifier, args.label_file,
-      int(args.cameraId), args.frameWidth, args.frameHeight)
+  ext_delegate = None
+  ext_delegate_options = {}
+
+  # parse extenal delegate options
+  if args.ext_delegate_options is not None:
+    options = args.ext_delegate_options.split(';')
+    for o in options:
+      kv = o.split(':')
+      if (len(kv) == 2):
+        ext_delegate_options[kv[0].strip()] = kv[1].strip()
+      else:
+        raise RuntimeError('Error parsing delegate option: ' + o)
+
+  # load external delegate
+  if args.ext_delegate is not None:
+    print('Loading external delegate from {} with args: {}'.format(
+        args.ext_delegate, ext_delegate_options))
+    ext_delegate = [
+        tflite.load_delegate(args.ext_delegate, ext_delegate_options)
+    ]
+
+  run(args.model, args.tracker, args.classifier, args.label_file, int(args.cameraId), args.frameWidth, args.frameHeight, args.num_threads, args.ext_delegate, args.ext_delegate_options)
 
 
 if __name__ == '__main__':
