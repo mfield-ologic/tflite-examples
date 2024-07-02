@@ -23,6 +23,31 @@ from ml import Movenet
 from ml import MoveNetMultiPose
 from ml import Posenet
 import utils
+import numpy as np
+
+# Resizes a image and maintains aspect ratio
+def maintain_aspect_ratio_resize(image, width=None, height=None, inter=cv2.INTER_AREA):
+    # Grab the image size and initialize dimensions
+    dim = None
+    (h, w) = image.shape[:2]
+
+    # Return original image if no need to resize
+    if width is None and height is None:
+        return image
+
+    # We are resizing height if width is none
+    if width is None:
+        # Calculate the ratio of the height and construct the dimensions
+        r = height / float(h)
+        dim = (int(w * r), height)
+    # We are resizing width if height is none
+    else:
+        # Calculate the ratio of the width and construct the dimensions
+        r = width / float(w)
+        dim = (width, int(h * r))
+
+    # Return the resized image
+    return cv2.resize(image, dim, interpolation=inter)
 
 
 def run(estimation_model: str,
@@ -30,10 +55,14 @@ def run(estimation_model: str,
         classification_model: str,
         label_file: str,
         camera_id: int,
+        window_width: int,
+        window_height: int,
         width: int,
         height: int,
         num_threads: int, 
-        ext_delegate, ext_delegate_options) -> None:
+        ext_delegate, ext_delegate_options,
+        background: str) -> None:
+       
   """Continuously run inference on images acquired from the camera.
 
   Args:
@@ -110,6 +139,9 @@ def run(estimation_model: str,
       # array.
       list_persons = [pose_detector.detect(image)]
 
+    if background != "mirror":
+      image = np.zeros((height, width, 3), dtype = np.uint8)
+
     # Draw keypoints and edges on input image
     image = utils.visualize(image, list_persons)
 
@@ -155,7 +187,7 @@ def run(estimation_model: str,
     # Stop the program if the ESC key is pressed.
     if cv2.waitKey(1) == 27:
       break
-    cv2.imshow(estimation_model, image)
+    cv2.imshow(estimation_model, maintain_aspect_ratio_resize(image, width=window_width, height=window_height))
 
   cap.release()
   cv2.destroyAllWindows()
@@ -184,6 +216,16 @@ def main():
   parser.add_argument(
       '--cameraId', help='Id of camera.', required=False, default=0)
   parser.add_argument(
+      '--windowWidth',
+      help='Width of window.',
+      required=False,
+      default=1920)
+  parser.add_argument(
+      '--windowHeight',
+      help='Height of window.',
+      required=False,
+      default=1080)
+  parser.add_argument(
       '--frameWidth',
       help='Width of frame to capture from camera.',
       required=False,
@@ -202,9 +244,14 @@ def main():
       '--ext_delegate_options',
       help='external delegate options, \
             format: "option1: value1; option2: value2"')
+  parser.add_argument(
+      '--background',
+      help='How to render background',
+      required=False,
+      default='mirror')
   args = parser.parse_args()
 
-  run(args.model, args.tracker, args.classifier, args.label_file, int(args.cameraId), args.frameWidth, args.frameHeight, args.num_threads, args.ext_delegate, args.ext_delegate_options)
+  run(args.model, args.tracker, args.classifier, args.label_file, int(args.cameraId), args.windowWidth, args.windowHeight, args.frameWidth, args.frameHeight, args.num_threads, args.ext_delegate, args.ext_delegate_options, args.background)
 
 
 if __name__ == '__main__':
