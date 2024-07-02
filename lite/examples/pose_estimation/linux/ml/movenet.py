@@ -71,7 +71,7 @@ class Movenet(object):
     if ext_delegate is not None:
       print('Loading external delegate from {} with args: {}'.format(ext_delegate, self.ext_delegate_options))
       self.ext_delegate = [
-          tflite.load_delegate(ext_delegate, self.ext_del_options)
+          tflite.load_delegate(ext_delegate, self.ext_delegate_options)
       ]
     
     # Initialize model
